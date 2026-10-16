@@ -3,3 +3,108 @@ title: "ZANNI_exercice2"
 output: html_document
 ---
 
+---
+title: 'CSS : Exercice 2'
+author: "Alice Zanni"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r}
+library(network)
+library(ergm)
+library(tnet)
+library(pacman)
+```
+
+```{r}
+
+consult <- Cross.Parker.Consulting.net.info
+
+consult$w <- ifelse(consult$w < 4, 0, 1)
+
+consult <- consult[consult$w == 1, ]
+
+consult <- network(consult[, 1:2], directed = T)
+
+consult %v% "gender" <- Cross.Parker.Consulting.node.gender
+consult %v% "region" <- Cross.Parker.Consulting.node.region
+consult %v% "orglevel" <- Cross.Parker.Consulting.node.orglevel
+
+
+set.seed(510)
+ergm.model <- ergm(consult ~ edges + mutual + gwesp(0.5, fixed = T) +
+                     nodematch("gender") + nodematch("region") +
+                     nodematch("orglevel") + nodeifactor("orglevel") +
+                     nodeofactor("orglevel") + absdiff("orglevel"), control = control.ergm(
+                       MCMC.samplesize = 5000,
+                       MCMC.burnin = 10000,
+                       MCMLE.maxit = 10
+                     ), 
+                   verbose = T)
+summary(ergm.model)
+```
+
+## Questions
+
+### 1. Take a look at the graphs I provided above. Based on nothing more than a visual inspection of the graphs, do you think there is any homophily? Why or why not? (Remember that the vertex distances are based on the Fruchterman-Reingold algorithm, which is described above.)
+
+Yes, there appears to be homophily, but mainly by location. Since the Fruchterman-Reingold algorithm places tied vertices and vertices with overlapping neighbourhoods close together, homophily would show up as vertices with the same attribute grouped in the same region of the plot.
+
+Looking at location, we see that the network into two clusters that match the two offices almost exactly, with European employees in a looser cluster in the upper left and American employees in a denser cluster below. 
+
+Additionally, there is little sign of homophily by gender because women tend to spread across both clusters rather than grouped together. Organisational level does not show homophily either, since each cluster mixes ranks. Level instead seems tied to position, with partners at the centre and research assistants on the periphery, which reflects hierarchy rather than homophily. The six isolates come from both offices and genders and do not change these conclusions.
+
+### 2. Does there appear to be gender homophily? What about heterophily (also known as disassortative mixing)? How do you know based on the ERGM output? What does this mean, in substantive terms?
+
+No. The nodematch.gender coefficient (0.14) is not significant (p = 0.56), so there is neither homophily nor heterophily. This entails that employees seek advice both from men and women.
+
+### 3. Does there appear to be regional homophily? What about heterophily? How do you know based on the ERGM output? What does this mean?
+
+The ERGM points to heterophily. The nodematch.region coefficient is negative and significant (−0.93***), so same-region ties have about 60% lower odds than cross-region ties. This would mean advice flows more between offices than within them. However, this contradicts the plots, and the extreme edges and gwesp estimates suggest the model is degenerate, so this result is unreliable.
+
+### 4. Does there appear to be positional homophily? What about heterophily? How do you know based on the ERGM output? What does this mean, in substantive terms?
+
+Yes, as the nodematch.orglevel coefficient is positive and significant (1.05*). This entails that people tend to seek advice from peers at their own rank.
+
+### 5. Is there any evidence of preferential attachment—or the tendency of vertices with certain attributes to attract more edges? How do you know, and what does this mean?
+
+There is some evidence of preferential attachment. Indeed, looking at the the nodeifactor terms , which shows who receives ties compared with research assistants, we can see that only managing consultants are significantly more sought after (1.72*).
+
+### 6.What do the nodeofactor() terms tell you about this network? (You can read more about the various ergm terms here or simply run help("ergm-terms") in your R session.)
+
+The nodeofactor() terms shows who "seeks advice". In the sense that junior, senior and managing consultants all send significantly more ties than research assistants, with senior consultants the most active (3.02\*\*\*). However, partners do not differ significantly.
+
+### 7. What does the absdiff() term tell you?
+
+The absdiff() shows us that the size of the rank gap between two employees matters. The coefficient is positive and significant (0.50***), so each additional level of difference raises the odds of a tie by about 65%. Combined with the positive nodematch result, this means employees mostly seek advice from peers at their own level, but when they look beyond it they tend to reach further up or down the hierarchy rather than to the adjacent level, as when a research assistant asks a managing consultant.
+
+## On your own
+
+### 1. Write the ergm() code to test for either a different node attribute effect (e.g., homophily based on organizational position) or a structural effect (e.g., reciprocity using the mutual term, or triadic closure using gwesp).
+
+```{r}
+m2 <- ergm(consult ~ edges + mutual)
+```
+
+mutual : reciprocity using the mutual term
+
+### 2. Print your model summary using summary().
+
+```{r}
+print(summary(m2))
+```
+
+### 3. Write a brief paragraph interpreting the results.
+
+This model tests for reciprocity in the advice network.
+
+Firstly, the edges term, which acts as an intercept, is negative and significant (−3.20, p \< 0.001). This implies that the baseline probability of an unreciprocated tie is low, at e\^(−3.20) / (1 + e\^(−3.20)) ≈ 0.04, which is consistent with a sparse network. Secondly, the mutual coefficient is positive and highly significant (3.84, z = 12.23, p \< 0.001).
+
+Furthermore, summing both coefficients gives −3.20 + 3.84 = 0.65, so the predicted probability of a tie rises to e\^0.65 / (1 + e\^0.65) ≈ 0.66.
+
+Moreover, the fall in deviance from 2,273.5 to 892.7 suggests that reciprocity alone accounts for a substantial share of the network’s structure.
+
+Overall, advice seeking within the firm appears to operate primarily through mutual exchange between colleagues, rather than as a one-way from experts to others.
